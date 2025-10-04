@@ -235,8 +235,8 @@ function s_validate() {
         </a>
       </div>
       <div class="social">
-        <a href="https://www.github.com/weebzone/WZML"><i class="fab fa-github"></i></a>
-        <a href="https://t.me/krn_adhikari"><i class="fab fa-telegram"></i></a>
+
+        <a href="https://t.me/GC_ANON"><i class="fab fa-telegram"></i></a>
       </div>
     </header>
     <div id="sticks">
@@ -835,16 +835,16 @@ def homepage():
 </head>
 <body>
     <div class="header">
-        <h1>WZML-X</h1>
+        <h1>B3NI</h1>
     </div>
     <div class="content">
         <img src="https://graph.org/file/639fe4239b78e5862b302.jpg" class="image">
-        <a href="https://telegram.me/WZML_X" style="text-decoration: none;">
+        <a href="https://telegram.me/GC_ANON" style="text-decoration: none;">
             <button class="button">Join Updates Channel Now</button>
         </a>
     </div>
     <div class="footer">
-© 2022-23 WZML-X. All Rights Reserved.
+© 2022-25 All Rights Reserved.
     </div>
 </body>
 </html>
