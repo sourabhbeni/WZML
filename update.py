@@ -11,7 +11,7 @@ from logging import (
     ERROR,
 )
 from os import path, remove, environ
-from pymongo.mongo_client import MongoClient
+from pymongo import MongoClient
 from pymongo.server_api import ServerApi
 from subprocess import run as srun, call as scall
 
