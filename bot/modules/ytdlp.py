@@ -1,9 +1,9 @@
 from asyncio import Event, wait_for
+from ast import literal_eval
 from functools import partial
 from time import time
 
-from httpx import AsyncClient
-from aiofiles.os import path as aiopath
+from niquests import AsyncSession
 from yt_dlp import YoutubeDL
 from pyrogram.filters import regex, user
 from pyrogram.handlers import CallbackQueryHandler
@@ -20,7 +20,10 @@ from ..helper.ext_utils.links_utils import is_url
 from ..helper.ext_utils.task_manager import pre_task_check
 from ..helper.ext_utils.status_utils import get_readable_file_size, get_readable_time
 from ..helper.listeners.task_listener import TaskListener
-from ..helper.mirror_leech_utils.download_utils.yt_dlp_download import YoutubeDLHelper
+from ..helper.mirror_leech_utils.download_utils.yt_dlp_download import (
+    YoutubeDLHelper,
+    get_cookie_file,
+)
 from ..helper.telegram_helper.button_build import ButtonMaker
 from ..helper.telegram_helper.message_utils import (
     auto_delete_message,
@@ -227,11 +230,11 @@ class YtSelection:
         buttons = ButtonMaker()
         for qual in range(11):
             audio_format = f"{format}{qual}"
-            buttons.data_button(qual, f"ytq {audio_format}")
+            buttons.data_button(str(qual), f"ytq {audio_format}")
         buttons.data_button("Back", "ytq aq back")
-        buttons.data_button("Cancel", "ytq aq cancel")
+        buttons.data_button("Cancel", "ytq cancel")
         subbuttons = buttons.build_menu(5)
-        msg = f"Choose Audio{i} Qaulity:\n0 is best and 10 is worst\nTimeout: {get_readable_time(self._timeout - (time() - self._time))}"
+        msg = f"Choose Audio{i} Quality:\n0 is best and 10 is worst\nTimeout: {get_readable_time(self._timeout - (time() - self._time))}"
         await edit_message(self._reply_to, msg, subbuttons)
 
 
@@ -245,7 +248,7 @@ def extract_info(link, options):
 
 async def _mdisk(link, name):
     key = link.split("/")[-1]
-    async with AsyncClient(verify=False) as client:
+    async with AsyncSession() as client:
         resp = await client.get(
             f"https://diskuploader.entertainvideo.com/v1/file/cdnurl?param={key}"
         )
@@ -318,6 +321,8 @@ class YtDlp(TaskListener):
             "-opt": {},
             "-n": "",
             "-up": "",
+            "-ud": "",
+            "-gc": "",
             "-rcf": "",
             "-t": "",
             "-ca": "",
@@ -343,13 +348,18 @@ class YtDlp(TaskListener):
                 if isinstance(args["-ff"], set):
                     self.ffmpeg_cmds = args["-ff"]
                 else:
-                    self.ffmpeg_cmds = eval(args["-ff"])
+                    value = literal_eval(args["-ff"])
+                    if not isinstance(value, (dict, set, list, tuple)):
+                        raise ValueError("ffmpeg_cmds must be a dict/set/list/tuple")
+                    self.ffmpeg_cmds = value
         except Exception as e:
             self.ffmpeg_cmds = None
             LOGGER.error(e)
 
         try:
-            opt = eval(args["-opt"]) if args["-opt"] else {}
+            opt = literal_eval(args["-opt"]) if args["-opt"] else {}
+            if not isinstance(opt, dict):
+                raise ValueError("yt-dlp options must be a dict")
         except Exception as e:
             LOGGER.error(e)
             opt = {}
@@ -357,6 +367,8 @@ class YtDlp(TaskListener):
         self.select = args["-s"]
         self.name = args["-n"]
         self.up_dest = args["-up"]
+        self.dump_dest = args["-ud"]
+        self.category = args["-gc"]
         self.rc_flags = args["-rcf"]
         self.link = args["link"]
         self.compress = args["-z"]
@@ -374,7 +386,7 @@ class YtDlp(TaskListener):
         self.thumbnail_layout = args["-tl"]
         self.as_doc = args["-doc"]
         self.as_med = args["-med"]
-        self.folder_name = f"/{args["-m"]}".rstrip("/") if len(args["-m"]) > 0 else ""
+        self.folder_name = f"/{args['-m']}".rstrip("/") if len(args["-m"]) > 0 else ""
         self.bot_trans = args["-bt"]
         self.user_trans = args["-ut"]
         self.metadata_dict = self.default_metadata_dict.copy()
@@ -441,7 +453,8 @@ class YtDlp(TaskListener):
         opt = opt or self.user_dict.get("YT_DLP_OPTIONS") or Config.YT_DLP_OPTIONS
 
         if not self.link and (reply_to := self.message.reply_to_message):
-            self.link = reply_to.text.split("\n", 1)[0].strip()
+            if reply_to.text:
+                self.link = reply_to.text.split("\n", 1)[0].strip()
 
         if not is_url(self.link):
             await send_message(
@@ -464,13 +477,7 @@ class YtDlp(TaskListener):
 
         self._set_mode_engine()
 
-        cookie_to_use = (
-            usr_cookie
-            if not self.user_dict.get("USE_DEFAULT_COOKIE", False)
-            and (usr_cookie := self.user_dict.get("USER_COOKIE_FILE", ""))
-            and await aiopath.exists(usr_cookie)
-            else "cookies.txt"
-        )
+        cookie_to_use = get_cookie_file(self.user_dict)
         LOGGER.info(
             f"Using cookies.txt file: {cookie_to_use} | User ID : {self.user_id}"
         )
@@ -509,13 +516,19 @@ class YtDlp(TaskListener):
         playlist = "entries" in result
 
         ydl = YoutubeDLHelper(self)
-        await delete_links(self.message)
         await ydl.add_download(path, qual, playlist, opt)
+        await delete_links(self.message)
 
 
 async def ytdl(client, message):
+    if Config.DISABLE_YTDLP:
+        await message.reply("YT-DLP downloads are currently disabled by the Bot Owner.")
+        return
     bot_loop.create_task(YtDlp(client, message).new_event())
 
 
 async def ytdl_leech(client, message):
+    if Config.DISABLE_YTDLP:
+        await message.reply("YT-DLP downloads are currently disabled by the Bot Owner.")
+        return
     bot_loop.create_task(YtDlp(client, message, is_leech=True).new_event())
