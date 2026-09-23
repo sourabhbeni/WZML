@@ -1,10 +1,9 @@
 from asyncio import sleep
 from secrets import token_hex
-from telegraph.aio import Telegraph
-from telegraph.exceptions import RetryAfterError
 
 from ... import LOGGER
 from ...core.config_manager import Config
+from .telegraph_utils import Telegraph, RetryAfterError
 
 
 class TelegraphHelper:
@@ -81,5 +80,3 @@ class TelegraphHelper:
 
 
 telegraph = TelegraphHelper(Config.AUTHOR_NAME, Config.AUTHOR_URL)
-
-print(__name__)

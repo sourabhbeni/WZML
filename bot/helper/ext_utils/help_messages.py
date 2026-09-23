@@ -49,13 +49,14 @@ link5 -m folder3
 link6
 so link1 and link2 content will be uploaded from same folder which is folder1
 link3 and link4 content will be uploaded from same folder also which is folder2
-link5 will uploaded alone inside new folder named folder3
+link5 will be uploaded alone inside new folder named folder3
 link6 will get uploaded normally alone
 """
 
 thumb = """<b>Thumbnail for current task</b>: -t
 
-/cmd link -t tg-message-link (doc or photo) or none (file without thumb)"""
+/cmd link -t image-url or tg-message-link (doc or photo) or none (file without thumb)
+Supports any direct image URL (jpg, png, webp, etc.) or a Telegram message link containing a photo/document."""
 
 split_size = """<b>Split size for current task</b>: -sp
 
@@ -76,9 +77,15 @@ To add leech destination:
 -up id/@username/pm
 -up b:id/@username/pm (b: means leech by bot) (id or username of the chat or write pm means private message so bot will send the files in private to you)
 when you should use b:(leech by bot)? When your default settings is leech by user and you want to leech by bot for specific task.
--up u:id/@username(u: means leech by user) This incase OWNER added USER_STRING_SESSION.
+-up u:id/@username(u: means leech by user) This in case OWNER added USER_STRING_SESSION.
 -up h:id/@username(hybrid leech) h: to upload files by bot and user based on file size.
 -up id/@username|topic_id(leech in specific chat and topic) add | without space and write topic id after chat id or username.
+
+<b>Named dump chats</b>: -ud
+-ud name (picks a chat from LEECH_DUMP_CHATS set by the owner, e.g. -ud A)
+-ud id/@username (raw chat id or username works too)
+If the name is not configured, buttons are shown to pick one of the configured dumps.
+The chosen chat becomes the upload destination for that task, overriding LEECH_LOG_CHAT.
 
 In case you want to specify whether using token.pickle or service accounts you can add tp:gdrive_id (using token.pickle) or sa:gdrive_id (using service accounts) or mtp:gdrive_id (using token.pickle uploaded from usetting).
 DEFAULT_UPLOAD doesn't affect on leech cmds.
@@ -86,10 +93,10 @@ DEFAULT_UPLOAD doesn't affect on leech cmds.
 
 user_download = """<b>User Download</b>: link
 
-/cmd tp:link to download using owner token.pickle incase service account enabled.
-/cmd sa:link to download using service account incase service account disabled.
-/cmd tp:gdrive_id to download using token.pickle and file_id incase service account enabled.
-/cmd sa:gdrive_id to download using service account and file_id incase service account disabled.
+/cmd tp:link to download using owner token.pickle in case service account enabled.
+/cmd sa:link to download using service account in case service account disabled.
+/cmd tp:gdrive_id to download using token.pickle and file_id in case service account enabled.
+/cmd sa:gdrive_id to download using service account and file_id in case service account disabled.
 /cmd mtp:gdrive_id or mtp:link to download using user token.pickle uploaded from usetting
 /cmd mrcc:remote:path to download using user rclone config uploaded from usetting
 you can simply edit upload using owner/user token/config from usetting without adding mtp: or mrcc: before the path/id"""
@@ -109,13 +116,13 @@ link2 -z -n new name -up remote2:path2
 link3 -e -n new name -up remote2:path2
 Reply to this example by this cmd -> /cmd -b(bulk)
 
-Note: Any arg along with the cmd will be setted to all links
+Note: Any arg along with the cmd will be set to all links
 /cmd -b -up remote: -z -m folder name (all links contents in one zipped folder uploaded to one destination)
-so you can't set different upload destinations along with link incase you have added -m along with cmd
+so you can't set different upload destinations along with link in case you have added -m along with cmd
 You can set start and end of the links from the bulk like seed, with -b start:end or only end by -b :end or only start by -b start.
 The default start is from zero(first link) to inf."""
 
-rlone_dl = """<b>Rclone Download</b>:
+rclone_dl = """<b>Rclone Download</b>:
 
 Treat rclone paths exactly like links
 /cmd main:dump/ubuntu.iso or rcl(To select config, remote and path)
@@ -216,7 +223,7 @@ You can simply edit using owner/user config from usetting without adding mrcc: b
 name_swap = r"""<b>Name Substitution</b>: -ns
 /cmd link -ns script/code/s | mirror/leech | tea/ /s | clone | cpu/ | \[mltb\]/mltb | \\text\\/text/s
 This will affect on all files. Format: wordToReplace/wordToReplaceWith/sensitiveCase
-Word Subtitions. You can add pattern instead of normal text. Timeout: 60 sec
+Word Substitutions. You can add pattern instead of normal text. Timeout: 60 sec
 NOTE: You must add \ before any character, those are the characters: \^$.|?*+()[]{}-
 1. script will get replaced by code with sensitive case
 2. mirror will get replaced by leech
@@ -228,9 +235,9 @@ NOTE: You must add \ before any character, those are the characters: \^$.|?*+()[
 """
 
 transmission = """<b>Tg transmission</b>: -hl -ut -bt
-/cmd link -hl (leech by user and bot session with respect to size) (Hybrid Leech)
-/cmd link -bt (leech by bot session)
-/cmd link -ut (leech by user)"""
+/cmd link -hl (both: user for >2GB, bot for ≤2GB)
+/cmd link -bt (bot only)
+/cmd link -ut (user only)"""
 
 thumbnail_layout = """Thumbnail Layout: -tl
 /cmd link -tl 3x3 (widthxheight) 3 photos in row and 3 photos in column"""
@@ -246,10 +253,34 @@ Notes:
 3. To execute one of pre-added lists in bot like: ({"subtitle": ["-i mltb.mkv -c copy -c:s srt mltb.mkv"]}), you must use -ff subtitle (list key)
 Examples: ["-i mltb.mkv -c copy -c:s srt mltb.mkv", "-i mltb.video -c copy -c:s srt mltb", "-i mltb.m4a -c:a libmp3lame -q:a 2 mltb.mp3", "-i mltb.audio -c:a libmp3lame -q:a 2 mltb.mp3", "-i mltb -map 0:a -c copy mltb.mka -map 0:s -c copy mltb.srt"]
 Here I will explain how to use mltb.* which is reference to files you want to work on.
-1. First cmd: the input is mltb.mkv so this cmd will work only on mkv videos and the output is mltb.mkv also so all outputs is mkv. -del will delete the original media after complete run of the cmd.
-2. Second cmd: the input is mltb.video so this cmd will work on all videos and the output is only mltb so the extenstion is same as input files.
-3. Third cmd: the input in mltb.m4a so this cmd will work only on m4a audios and the output is mltb.mp3 so the output extension is mp3.
+1. First cmd: the input is mltb.mkv so this cmd will work only on mkv videos and the output is mltb.mkv also so all outputs are mkv. -del will delete the original media after complete run of the cmd.
+2. Second cmd: the input is mltb.video so this cmd will work on all videos and the output is only mltb so the extension is the same as input files.
+3. Third cmd: the input is mltb.m4a so this cmd will work only on m4a audios and the output is mltb.mp3 so the output extension is mp3.
 4. Fourth cmd: the input is mltb.audio so this cmd will work on all audios and the output is mltb.mp3 so the output extension is mp3."""
+
+alldebrid_arg = """<b>AllDebrid Unlock</b>: -ad
+
+/cmd link -ad
+Resolves filehost links (1fichier, rapidgator, mega, etc.) via the
+AllDebrid API before handing off to the existing direct downloader.
+
+Magnet/torrent inputs are also routed through AllDebrid when -ad
+is set: the bot uploads the magnet (or replied <code>.torrent</code>
+file), waits for AllDebrid to finish torrenting, then downloads each
+file directly from AllDebrid CDNs. This bypasses aria2/qBittorrent
+entirely so dead torrents finish faster on a debrid plan.
+
+Requires <code>ALLDEBRID_API_KEY</code> in the bot configuration."""
+
+seedr_arg = """<b>Seedr Cloud</b>: -seedr
+
+/cmd magnet -seedr
+Sends the magnet to your Seedr.cc cloud account, waits for it to
+finish there, then downloads the finished files over plain HTTP.
+Useful when the torrent is slow or blocked on your server.
+
+Only works with magnet links and .torrent URLs.
+Set SEEDR_EMAIL and SEEDR_PASSWORD in /usetting or the bot config."""
 
 metadata = """<b>Metadata</b>: -meta
 
@@ -324,7 +355,7 @@ MIRROR_HELP_DICT = {
     "Rclone-Flags": rcf,
     "Bulk": bulk,
     "Join": join,
-    "Rclone-DL": rlone_dl,
+    "Rclone-DL": rclone_dl,
     "Tg-Links": tg_links,
     "Sample-Video": sample_video,
     "Screenshot": screenshot,
@@ -337,6 +368,8 @@ MIRROR_HELP_DICT = {
     "Leech-Type": leech_as,
     "FFmpeg-Cmds": ffmpeg_cmds,
     "Metadata": metadata,
+    "AllDebrid": alldebrid_arg,
+    "Seedr": seedr_arg,
 }
 
 CLONE_HELP_DICT = {
@@ -361,7 +394,7 @@ Title3 link -c cmd -d ratio:time -z password
 Example: Title https://www.rss-url.com -inf 1080 or 720 or 144p|mkv or mp4|hevc -exf flv or web|xxx
 This filter will parse links that its titles contain `(1080 or 720 or 144p) and (mkv or mp4) and hevc` and doesn't contain (flv or web) and xxx words. You can add whatever you want.
 
-Another example: -inf  1080  or 720p|.web. or .webrip.|hvec or x264. This will parse titles that contain ( 1080  or 720p) and (.web. or .webrip.) and (hvec or x264). I have added space before and after 1080 to avoid wrong matching. If this `10805695` number in title it will match 1080 if added 1080 without spaces after it.
+Another example: -inf  1080  or 720p|.web. or .webrip.|hevc or x264. This will parse titles that contain ( 1080  or 720p) and (.web. or .webrip.) and (hevc or x264). I have added space before and after 1080 to avoid wrong matching. If this `10805695` number in title it will match 1080 if added 1080 without spaces after it.
 
 Filter Notes:
 1. | means and.
@@ -396,17 +429,16 @@ def get_bot_commands():
         "Count": "[link] Count no. of files/folders in GDrive",
         "List": "[query] Search any Text which is available in GDrive",
         "Search": "[query] Search torrents via Qbit Plugins",
-        "MediaInfo": "[reply/link] Get MediaInfo of the Target Media",
         "Select": "[gid/reply] Select files for NZB, Aria2, Qbit Tasks",
         "Ping": "Ping Bot to test Response Speed",
         "Status": "[id/me] Tasks Status of Bot",
         "Stats": "Bot, OS, Repo & System full Statistics",
         "Rss": "User RSS Management Settings",
-        "IMDB": "[query] or ttxxxxxx Get IMDB info",
         "CancelAll": "Cancel all Tasks on the Bot",
         "Help": "Detailed help usage of the WZ Bot",
         "BotSet": "[SUDO] Bot Management Settings",
         "Log": "[SUDO] Get Bot Logs for Internal Working",
+        "Memory": "[SUDO] Memory usage, caches and an allocation profiler",
         "Restart": "[SUDO] Reboot bot",
         "RestartSessions": "[SUDO] Reboot User Sessions",
     }
@@ -418,8 +450,11 @@ def get_bot_commands():
         for plugin_info in plugin_manager.list_plugins():
             if plugin_info.enabled and plugin_info.commands:
                 for cmd in plugin_info.commands:
-                    if cmd == "speedtest":
-                        commands["SpeedTest"] = "Check Bot Speed using Speedtest.com"
+                    key = cmd.capitalize()
+                    if key not in commands:
+                        commands[key] = (
+                            plugin_info.description or f"Plugin command: {cmd}"
+                        )
 
     return commands
 
@@ -430,7 +465,7 @@ BOT_COMMANDS = get_bot_commands()
 def get_help_string():
     from ..telegram_helper.bot_commands import BotCommands
 
-    help_lines = ["NOTE: Try each command without any argument to see more detalis."]
+    help_lines = ["NOTE: Try each command without any argument to see more details."]
 
     commands = BotCommands.get_commands()
 
@@ -444,9 +479,7 @@ def get_help_string():
         else:
             cmd_str = f"/{cmd_attr}"
 
-        if key == "SpeedTest" and key in BOT_COMMANDS:
-            help_lines.append(f"{cmd_str}: Check Bot Speed using Speedtest.com")
-        elif key == "Mirror":
+        if key == "Mirror":
             help_lines.append(f"{cmd_str}: Start mirroring to cloud.")
         elif key == "QbMirror":
             help_lines.append(f"{cmd_str}: Start Mirroring to cloud using qBittorrent.")
@@ -466,6 +499,8 @@ def get_help_string():
             help_lines.append(f"{cmd_str}: Start leeching using JDownloader.")
         elif key == "NzbLeech":
             help_lines.append(f"{cmd_str}: Start leeching using Sabnzbd.")
+        elif key == "SeedrLink":
+            help_lines.append(f"{cmd_str}: Get direct Seedr HTTP download links.")
         elif key == "YtdlLeech":
             help_lines.append(f"{cmd_str}: Leech yt-dlp supported link.")
         elif key == "Clone":
@@ -498,8 +533,6 @@ def get_help_string():
             help_lines.append(f"{cmd_str} [query]: Search in Google Drive(s).")
         elif key == "Search":
             help_lines.append(f"{cmd_str} [query]: Search for torrents with API.")
-        elif key == "MediaInfo":
-            help_lines.append(f"{cmd_str} [query]: Get media info.")
         elif key == "Status":
             help_lines.append(f"{cmd_str}: Shows a status of all the downloads.")
         elif key == "Stats":
@@ -524,6 +557,20 @@ def get_help_string():
             help_lines.append(f"{cmd_str}: Add sudo user (Only Owner).")
         elif key == "RmSudo":
             help_lines.append(f"{cmd_str}: Remove sudo users (Only Owner).")
+        elif key == "BlackList":
+            help_lines.append(
+                f"{cmd_str}: Blacklist a user from using the bot (Only Owner & Sudo)."
+            )
+        elif key == "RmBlackList":
+            help_lines.append(
+                f"{cmd_str}: Remove a user from blacklist (Only Owner & Sudo)."
+            )
+        elif key == "AddImage":
+            help_lines.append(
+                f"{cmd_str}: Add an image to the gallery by reply to photo or link."
+            )
+        elif key == "Images":
+            help_lines.append(f"{cmd_str}: View and manage the image gallery.")
         elif key == "Restart":
             help_lines.append(
                 f"{cmd_str}: Restart and update the bot (Only Owner & Sudo)."
@@ -544,6 +591,8 @@ def get_help_string():
             )
         elif key == "Rss":
             help_lines.append(f"/{BotCommands.RssCommand}: RSS Menu.")
+        elif key in BOT_COMMANDS:
+            help_lines.append(f"{cmd_str}: {BOT_COMMANDS[key]}")
 
     return "\n".join(help_lines)
 

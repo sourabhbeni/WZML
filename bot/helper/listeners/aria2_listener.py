@@ -31,7 +31,7 @@ async def _on_download_started(api, data):
         if task := await get_task_by_gid(gid):
             task.listener.is_torrent = True
             if task.listener.select:
-                metamsg = "Downloading Metadata, wait then you can select files. Use torrent file to avoid this wait."
+                metamsg = "<b>Fetching Metadata...</b>\n\n<i>Hold tight! You can select files once it's done.</i>\n\n<b>💡 Tip:</b> Use <code>.torrent</code> file instead to skip this wait."
                 meta = await send_message(task.listener.message, metamsg)
                 while True:
                     await sleep(0.5)
@@ -59,6 +59,9 @@ async def _on_download_started(api, data):
             await task.listener.on_download_error(msg, button)
             return
 
+        if task.listener.select and not task.listener.files_selected:
+            return
+
         task.listener.size = int(download.get("totalLength", "0"))
         mmsg = await limit_checker(task.listener)
         if mmsg:
@@ -68,13 +71,18 @@ async def _on_download_started(api, data):
 
 
 async def _on_download_complete(api, data):
+    gid = data["params"][0]["gid"]
     try:
-        gid = data["params"][0]["gid"]
         download, options = await api.tellStatus(gid), await api.getOption(gid)
         if options.get("follow-torrent", "") == "false":
             return
     except (TimeoutError, ClientError, Exception) as e:
-        LOGGER.error(f"onDownloadComplete: {e}")
+        if "not found" in str(e):
+            LOGGER.warning(
+                f"onDownloadComplete: GID {gid} not found (already processed)"
+            )
+        else:
+            LOGGER.error(f"onDownloadComplete: {e}")
         return
     if download.get("followedBy", []):
         new_gid = download.get("followedBy", [])[0]
@@ -84,8 +92,8 @@ async def _on_download_complete(api, data):
             if Config.BASE_URL and task.listener.select:
                 if not task.queued:
                     await api.forcePause(new_gid)
-                SBUTTONS = bt_selection_buttons(new_gid)
-                msg = "Download paused. Choose files then press Done Selecting button to start downloading."
+                SBUTTONS = bt_selection_buttons(new_gid, task.listener.message)
+                msg = "<b>Download Paused!</b>\n\n<i>Select your files &amp; press <b>Done Selecting</b> to start.</i>"
                 await send_message(task.listener.message, msg, SBUTTONS)
     elif "bittorrent" in download:
         if task := await get_task_by_gid(gid):

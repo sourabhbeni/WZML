@@ -5,7 +5,7 @@ from enum import Enum
 from functools import wraps
 from typing import Any, Callable, Dict, List, Optional
 
-from .. import LOGGER
+from ... import LOGGER
 
 
 class ErrorSeverity(Enum):
@@ -55,7 +55,7 @@ class CircuitBreaker:
         elif self.state == CircuitState.OPEN:
             if (
                 datetime.now() - self.last_failure_time
-            ).seconds >= self.recovery_timeout:
+            ).total_seconds() >= self.recovery_timeout:
                 self.state = CircuitState.HALF_OPEN
                 return True
             return False
