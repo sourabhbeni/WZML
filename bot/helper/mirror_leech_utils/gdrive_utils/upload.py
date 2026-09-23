@@ -1,5 +1,6 @@
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaFileUpload
+from json import loads as json_loads
 from logging import getLogger
 from os import path as ospath, listdir, remove
 from tenacity import (
@@ -41,10 +42,11 @@ class GoogleDriveUpload(GoogleDriveHelper):
 
     def upload(self):
         self.user_setting()
-        self.service = self.authorize()
         LOGGER.info(f"Uploading: {self._path}")
         self._updater = SetInterval(self.update_interval, self.progress)
+        dir_id = None
         try:
+            self.service = self.authorize()
             if ospath.isfile(self._path):
                 mime_type = get_mime_type(self._path)
                 link = self._upload_file(
@@ -91,6 +93,18 @@ class GoogleDriveUpload(GoogleDriveHelper):
                 return
             elif self._is_errored:
                 return
+            if Config.DRIVE_CATEGORY_SA and self.listener.up_dest != Config.GDRIVE_ID:
+                target_id = (
+                    dir_id if mime_type == "Folder" else self.get_id_from_url(link)
+                )
+                if target_id:
+                    try:
+                        self.add_permission_user(target_id, Config.DRIVE_CATEGORY_SA)
+                        LOGGER.info(
+                            f"Added DRIVE_CATEGORY_SA permission on {target_id}"
+                        )
+                    except Exception as e:
+                        LOGGER.error(f"Failed to add DRIVE_CATEGORY_SA permission: {e}")
             async_to_sync(
                 self.listener.on_upload_complete,
                 link,
@@ -115,6 +129,7 @@ class GoogleDriveUpload(GoogleDriveHelper):
             else:
                 mime_type = get_mime_type(current_file_name)
                 file_name = current_file_name.split("/")[-1]
+                self.sa_count = 1
                 self._upload_file(current_file_name, file_name, mime_type, dest_id)
                 self.total_files += 1
                 new_id = dest_id
@@ -172,7 +187,10 @@ class GoogleDriveUpload(GoogleDriveHelper):
                     continue
                 if err.resp.get("content-type", "").startswith("application/json"):
                     reason = (
-                        eval(err.content).get("error").get("errors")[0].get("reason")
+                        json_loads(err.content)
+                        .get("error")
+                        .get("errors")[0]
+                        .get("reason")
                     )
                     if reason not in [
                         "userRateLimitExceeded",
@@ -190,6 +208,9 @@ class GoogleDriveUpload(GoogleDriveHelper):
                                 return
                             self.switch_service_account()
                             LOGGER.info(f"Got: {reason}, Trying Again...")
+                            self.proc_bytes -= self.file_processed_bytes
+                            self.file_processed_bytes = 0
+                            self.status = None
                             return self._upload_file(
                                 file_path,
                                 file_name,

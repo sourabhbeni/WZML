@@ -18,6 +18,7 @@ class BotCommands:
         "JdLeech": ["jdleech", "jl"],
         "YtdlLeech": ["ytdlleech", "yl"],
         "NzbLeech": ["nzbleech", "nl"],
+        "SeedrLink": ["seedrlink", "slink", "srlink"],
         "Clone": ["clone", "cl"],
         "Count": "count",
         "Delete": "del",
@@ -28,7 +29,7 @@ class BotCommands:
         "CancelAll": ["cancelall", "call"],
         "ForceStart": ["forcestart", "fs"],
         "Status": ["status", "s", "statusall"],
-        "MediaInfo": ["mediainfo", "mi"],
+        "Stream": ["stream", "sl"],
         "Ping": "ping",
         "Restart": ["restart", "r", "restartall"],
         "RestartSessions": ["restartses", "rses"],
@@ -40,35 +41,48 @@ class BotCommands:
         "AExec": "aexec",
         "Exec": "exec",
         "ClearLocals": "clearlocals",
-        "IMDB": "imdb",
         "Rss": "rss",
+        "AddImage": ["addimage", "ai"],
+        "Images": ["images", "img"],
         "Authorize": ["authorize", "a"],
         "UnAuthorize": ["unauthorize", "ua"],
         "AddSudo": ["addsudo", "as"],
         "RmSudo": ["rmsudo", "rs"],
+        "BlackList": ["blacklist", "bl"],
+        "RmBlackList": ["rmblacklist", "rbl"],
         "BotSet": ["bsetting", "bs"],
         "UserSet": ["usetting", "us"],
         "Select": ["select", "sel"],
-        "NzbSearch": ["nzbsearch", "ns"],
+        "CategorySelect": ["category", "ctsel"],
+        "GDClean": ["gdclean", "gdc"],
         "Plugins": "plugins",
+        "Memory": ["memory", "mem"],
     }
 
     @classmethod
     def get_commands(cls):
-        commands = cls._static_commands.copy()
+        commands = {
+            key: (list(value) if isinstance(value, list) else value)
+            for key, value in cls._static_commands.items()
+        }
+        taken = set()
+        for value in commands.values():
+            taken.update(value if isinstance(value, list) else [value])
 
         plugin_manager = get_plugin_manager()
         if plugin_manager:
-            for plugin_info in plugin_manager.list_plugins():
-                if plugin_info.enabled and plugin_info.commands:
-                    for cmd in plugin_info.commands:
-                        if cmd == "speedtest":
-                            commands["SpeedTest"] = ["speedtest", "stest"]
-                        elif cmd == "stest":
-                            if "SpeedTest" not in commands:
-                                commands["SpeedTest"] = ["speedtest", "stest"]
-                            elif "stest" not in commands["SpeedTest"]:
-                                commands["SpeedTest"].append("stest")
+            for rec in plugin_manager.list_plugins():
+                if not rec.enabled:
+                    continue
+                for primary, names in rec.command_map().items():
+                    fresh = [name for name in names if name not in taken]
+                    if not fresh:
+                        continue
+                    key = primary.capitalize()
+                    if key in commands:
+                        key = f"{rec.name.capitalize()}{key}"
+                    commands[key] = fresh
+                    taken.update(fresh)
 
         return commands
 

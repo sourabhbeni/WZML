@@ -174,6 +174,9 @@ class RcloneTransferHelper:
             if config_path != "rclone.conf":
                 sa_files = await listdir("accounts")
                 self._sa_number = len(sa_files)
+                if self._sa_number == 0:
+                    LOGGER.error("No service account files found in accounts/")
+                    raise ValueError("No service account files found")
                 self._sa_index = randrange(self._sa_number)
                 remote = f"sa{self._sa_index:03}"
                 LOGGER.info(f"Download with service account {remote}")
@@ -275,6 +278,11 @@ class RcloneTransferHelper:
         else:
             oconfig_path = "rclone.conf"
 
+        if ":" not in rc_path:
+            await self._listener.on_upload_error(
+                f"Invalid rclone upload destination: {self._listener.up_dest}"
+            )
+            return
         oremote, rc_path = rc_path.split(":", 1)
 
         if await aiopath.isdir(path):
@@ -306,6 +314,9 @@ class RcloneTransferHelper:
             if fconfig_path != "rclone.conf":
                 sa_files = await listdir("accounts")
                 self._sa_number = len(sa_files)
+                if self._sa_number == 0:
+                    LOGGER.error("No service account files found in accounts/")
+                    raise ValueError("No service account files found")
                 self._sa_index = randrange(self._sa_number)
                 fremote = f"sa{self._sa_index:03}"
                 LOGGER.info(f"Upload with service account {fremote}")
@@ -363,6 +374,11 @@ class RcloneTransferHelper:
 
     async def clone(self, config_path, src_remote, src_path, mime_type, method):
         destination = self._listener.up_dest
+        if ":" not in destination:
+            await self._listener.on_upload_error(
+                f"Invalid rclone upload destination: {destination}"
+            )
+            return None, None
         dst_remote, dst_path = destination.split(":", 1)
 
         try:

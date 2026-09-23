@@ -65,6 +65,9 @@ class YouTubeUpload(YouTubeHelper):
         elif hasattr(self.listener, "user_id") and self.listener.user_id:
             self.token_path = f"tokens/{self.listener.user_id}.pickle"
 
+    def _yt_opt(self, key):
+        return self.listener.user_dict.get(key) or Config.get(key)
+
     def upload(self):
         """Main upload function"""
         self.user_setting()
@@ -92,7 +95,9 @@ class YouTubeUpload(YouTubeHelper):
                     )
 
                 playlist_id = self._create_playlist(
-                    self.name, Config.YT_PRIVACY_STATUS, Config.YT_DESP
+                    self.name,
+                    self._yt_opt("YT_PRIVACY_STATUS"),
+                    self._yt_opt("YT_DESP"),
                 )
                 if not playlist_id:
                     raise ValueError("Failed to create playlist.")
@@ -140,7 +145,6 @@ class YouTubeUpload(YouTubeHelper):
                 if video_url:
                     LOGGER.info(f"Uploaded To YouTube: {self.name} - {video_url}")
             else:
-
                 raise ValueError(f"Invalid path type for upload: {self.path}")
 
         except Exception as err:
@@ -162,7 +166,6 @@ class YouTubeUpload(YouTubeHelper):
             return
 
         if self._is_errored and self.is_folder_upload:
-
             pass
 
         if self.is_folder_upload:
@@ -178,7 +181,6 @@ class YouTubeUpload(YouTubeHelper):
                 and playlist_url
                 and not any(ospath.exists(v_path) for v_path in self.video_files)
             ):
-
                 pass
 
             async_to_sync(
@@ -232,10 +234,10 @@ class YouTubeUpload(YouTubeHelper):
         """Upload video to YouTube and optionally add to a playlist."""
 
         title = file_name
-        description = Config.YT_DESP
-        tags = Config.YT_TAGS
-        category_id = Config.YT_CATEGORY_ID
-        privacy_status = Config.YT_PRIVACY_STATUS
+        description = self._yt_opt("YT_DESP")
+        tags = self._yt_opt("YT_TAGS")
+        category_id = str(self._yt_opt("YT_CATEGORY_ID"))
+        privacy_status = self._yt_opt("YT_PRIVACY_STATUS")
 
         video_body = {
             "snippet": {
@@ -261,10 +263,11 @@ class YouTubeUpload(YouTubeHelper):
         video_response = None
         retries = 0
         current_chunk_uploaded_bytes = 0
+        self.status = None
+        self.file_processed_bytes = 0
 
         while video_response is None and not self.listener.is_cancelled:
             try:
-                prev_progress_bytes = current_chunk_uploaded_bytes
                 self.status, video_response = insert_request.next_chunk()
 
                 if self.status:
@@ -284,7 +287,6 @@ class YouTubeUpload(YouTubeHelper):
                     LOGGER.info(f"Uploading '{title}': {self.upload_progress}%")
 
             except HttpError as err:
-
                 if err.resp.status in [500, 502, 503, 504, 429] and retries < 5:
                     retries += 1
                     LOGGER.warning(

@@ -1,7 +1,7 @@
 from asyncio import gather
 from collections import defaultdict
 
-from .... import LOGGER, sabnzbd_client, nzb_jobs, nzb_listener_lock
+from .... import LOGGER, sabnzbd_client
 from ...ext_utils.status_utils import (
     MirrorStatus,
     EngineStatus,
@@ -9,34 +9,46 @@ from ...ext_utils.status_utils import (
     get_readable_time,
     time_to_seconds,
 )
+from ...listeners.nzb_listener import _remove_job
 
 
 async def get_download(nzo_id, old_info=None):
     if old_info is None:
-        old_info = {}
+        old_info = defaultdict(lambda: "")
     try:
         queue = await sabnzbd_client.get_downloads(nzo_ids=nzo_id)
         if res := queue["queue"]["slots"]:
             slot = res[0]
             if msg := slot["labels"]:
-                LOGGER.warning(" | ".join(msg))
+                filtered_msgs = []
+                for m in msg:
+                    if "apikey=" in m or "Trying to fetch NZB from" in m:
+                        if "getnzb/api/" in m:
+                            nzb_id = m.split("getnzb/api/")[1].split("?")[0]
+                            filtered_msgs.append(f"Fetching NZB ID: {nzb_id}")
+                        else:
+                            filtered_msgs.append("Fetching NZB...")
+                    else:
+                        filtered_msgs.append(m)
+                if filtered_msgs:
+                    LOGGER.warning(" | ".join(filtered_msgs))
             return slot
         else:
             history = await sabnzbd_client.get_history(nzo_ids=nzo_id)
             if res := history["history"]["slots"]:
                 slot = res[0]
                 if slot["status"] == "Verifying":
-                    percentage = slot["action_line"].split("Verifying: ")[-1].split("/")
-                    percentage = round(
-                        (int(float(percentage[0])) / int(float(percentage[1]))) * 100, 2
-                    )
-                    old_info["percentage"] = percentage
+                    parts = slot["action_line"].split("Verifying: ")[-1].split("/")
+                    if len(parts) > 1:
+                        percentage = round(
+                            (int(float(parts[0])) / int(float(parts[1]))) * 100, 2
+                        )
+                        old_info["percentage"] = percentage
                 elif slot["status"] == "Repairing":
                     action = slot["action_line"].split("Repairing: ")[-1].split()
-                    percentage = action[0].strip("%")
-                    eta = action[2]
-                    old_info["percentage"] = percentage
-                    old_info["timeleft"] = eta
+                    if len(action) > 2:
+                        old_info["percentage"] = action[0].strip("%")
+                        old_info["timeleft"] = action[2]
                 elif slot["status"] == "Extracting":
                     if "Unpacking" in slot["action_line"]:
                         action = slot["action_line"].split("Unpacking: ")[-1].split()
@@ -44,13 +56,13 @@ async def get_download(nzo_id, old_info=None):
                         action = (
                             slot["action_line"].split("Direct Unpack: ")[-1].split()
                         )
-                    percentage = action[0].split("/")
-                    percentage = round(
-                        (int(float(percentage[0])) / int(float(percentage[1]))) * 100, 2
-                    )
-                    eta = action[2]
-                    old_info["percentage"] = percentage
-                    old_info["timeleft"] = eta
+                    if len(action) > 2:
+                        parts = action[0].split("/")
+                        if len(parts) > 1:
+                            old_info["percentage"] = round(
+                                (int(float(parts[0])) / int(float(parts[1]))) * 100, 2
+                            )
+                            old_info["timeleft"] = action[2]
                 old_info["status"] = slot["status"]
         return old_info
     except Exception as e:
@@ -63,8 +75,12 @@ class SabnzbdStatus:
         self.queued = queued
         self.listener = listener
         self._gid = gid
-        self._info = {}
+        self._info = defaultdict(lambda: "")
         self.engine = EngineStatus().STATUS_SABNZBD
+        if hasattr(listener, "nzb_id") and listener.nzb_id:
+            self._display_name = f"NZB ID: {listener.nzb_id}"
+        else:
+            self._display_name = None
 
     async def update(self):
         self._info = await get_download(self._gid, self._info)
@@ -92,7 +108,15 @@ class SabnzbdStatus:
         return f"{get_readable_file_size(self.speed_raw())}/s"
 
     def name(self):
-        return self._info.get("filename", "")
+        filename = self._info.get("filename", "")
+        if self._display_name and (not filename or "Trying to fetch" in filename):
+            return self._display_name
+        if filename and "apikey=" in filename:
+            if "getnzb/api/" in filename:
+                nzb_id = filename.split("getnzb/api/")[1].split("?")[0]
+                return f"NZB ID: {nzb_id}"
+            return "Fetching NZB..."
+        return filename or self._display_name or "Fetching NZB..."
 
     def size(self):
         return self._info.get("size", 0)
@@ -134,10 +158,5 @@ class SabnzbdStatus:
         LOGGER.info(f"Cancelling Download: {self.name()}")
         await gather(
             self.listener.on_download_error("Stopped by user!"),
-            sabnzbd_client.delete_job(self._gid, delete_files=True),
-            sabnzbd_client.delete_category(f"{self.listener.mid}"),
-            sabnzbd_client.delete_history(self._gid, delete_files=True),
+            _remove_job(self._gid, self.listener.mid),
         )
-        async with nzb_listener_lock:
-            if self._gid in nzb_jobs:
-                del nzb_jobs[self._gid]

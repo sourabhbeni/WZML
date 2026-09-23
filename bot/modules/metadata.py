@@ -1,13 +1,14 @@
 from asyncio import create_subprocess_exec
 from asyncio.subprocess import PIPE
-import os
 from os import path as ospath, walk
 
 from aiofiles.os import path as aiopath, remove
 from aioshutil import move
 
-from .. import LOGGER, cpu_eater_lock, task_dict, task_dict_lock
+from .. import LOGGER, task_dict, task_dict_lock
+from ..helper.ext_utils.bot_lock import ff_lock
 from ..core.config_manager import BinConfig
+from ..core.cpu import ffmpeg_layout
 from ..helper.ext_utils.bot_utils import sync_to_async
 from ..helper.ext_utils.files_utils import get_path_size
 from ..helper.ext_utils.media_utils import (
@@ -58,10 +59,12 @@ async def apply_metadata_title(
     async with task_dict_lock:
         task_dict[self.mid] = MetadataStatus(self, ffmpeg, gid, "up")
     self.progress = False
-    await cpu_eater_lock.acquire()
-    self.progress = True
 
+    lock_acquired = False
     try:
+        await ff_lock.acquire()
+        lock_acquired = True
+        self.progress = True
         for file_path, is_video, is_audio in files:
             if self.is_cancelled:
                 break
@@ -83,7 +86,6 @@ async def apply_metadata_title(
             if not streams:
                 LOGGER.error(f"Error getting streams for {file_path}. Skipping.")
                 if is_file:
-                    cpu_eater_lock.release()
                     return dl_path
                 continue
 
@@ -155,14 +157,14 @@ async def apply_metadata_title(
                 met_cmd.append(item)
             for k, v_ in meta["global"].items():
                 met_cmd += ["-metadata", f"{k}={v_}"]
-            met_cmd += ["-threads", str(max(1, (os.cpu_count() or 2) // 2)), temp_out]
+            met_cmd += ["-threads", str(ffmpeg_layout()[1]), temp_out]
 
             ffmpeg.clear()
             media_info = await get_media_info(file_path)
             if media_info:
                 ffmpeg._total_time = media_info[0]
 
-            LOGGER.debug(f"FFmpeg command: {' '.join(met_cmd)}")
+            LOGGER.info(f"FFmpeg command: {' '.join(met_cmd)}")
             self.subproc = await create_subprocess_exec(
                 *met_cmd, stdout=PIPE, stderr=PIPE
             )
@@ -184,5 +186,6 @@ async def apply_metadata_title(
                 if await aiopath.exists(temp_out):
                     await remove(temp_out)
     finally:
-        cpu_eater_lock.release()
+        if lock_acquired:
+            await ff_lock.release()
     return dl_path
